@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImageViewer95 — Slow-Load Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#c0c0c0;
+    --face-light:#dfdfdf;
+    --face-white:#ffffff;
+    --face-dark:#808080;
+    --face-darkest:#000000;
+    --navy1:#000080;
+    --navy2:#1084d0;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{ height:100%; }
+  body.no-scroll{ overflow:hidden; }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    padding:24px 12px;
+    background:#008080;
+    font-family: Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    color:#000;
+  }
+
+  /* ---------- bevel helpers ---------- */
+  .bevel-out{
+    box-shadow:
+      inset -1px -1px 0 0 var(--face-dark),
+      inset  1px  1px 0 0 var(--face-white),
+      inset -2px -2px 0 0 var(--face-darkest),
+      inset  2px  2px 0 0 var(--face-light);
+  }
+  .bevel-in{
+    box-shadow:
+      inset -1px -1px 0 0 var(--face-white),
+      inset  1px  1px 0 0 var(--face-dark),
+      inset -2px -2px 0 0 var(--face-light),
+      inset  2px  2px 0 0 var(--face-darkest);
+  }
+
+  /* ---------- window ---------- */
+  .window{
+    position:relative;
+    z-index:10;
+    width: min(94vw, 560px);
+    background: var(--face);
+    border: 1px solid #000;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.35), inset 1px 1px 0 var(--face-white);
+  }
+
+  .title-bar{
+    background: linear-gradient(90deg, var(--navy1), var(--navy2));
+    color:#fff;
+    font-weight:bold;
+    letter-spacing:.3px;
+    padding:4px 4px 4px 8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    cursor:move;
+    user-select:none;
+    touch-action:none;
+  }
+  .window.dragging{
+    user-select:none;
+  }
+  .window.dragging .title-bar{
+    cursor:grabbing;
+  }
+  .title-text{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .title-credit{
+    font-weight:bold;
+    font-size:inherit;
+    opacity:1;
+  }
+  .title-buttons{ display:flex; gap:2px; flex:0 0 auto; }
+  .title-buttons span{
+    width:18px; height:16px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--face); color:#000;
+    font-size:11px; font-weight:bold; line-height:1;
+    user-select:none;
+    cursor:pointer;
+  }
+  .title-buttons span.bevel-out:active{
+    box-shadow:
+      inset -1px -1px 0 0 var(--face-white),
+      inset  1px  1px 0 0 var(--face-dark),
+      inset -2px -2px 0 0 var(--face-light),
+      inset  2px  2px 0 0 var(--face-darkest);
+  }
+
+  .menu-bar{
+    position:relative;
+    display:flex; gap:14px;
+    padding:3px 10px;
+    border-bottom:1px solid var(--face-dark);
+    background:var(--face);
+  }
+  .menu-group{
+    position:relative;
+  }
+  .menu-item{
+    padding:1px 5px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .menu-item:hover, .menu-item.open{ background:var(--navy1); color:#fff; }
+
+  .dropdown{
+    position:absolute;
+    top:100%;
+    left:0;
+    min-width:150px;
+    background:var(--face);
+    z-index:20;
+    padding:2px;
+  }
+  .dropdown-item{
+    padding:5px 14px;
+    cursor:pointer;
+    user-select:none;
+    white-space:nowrap;
+  }
+  .dropdown-item:hover{ background:var(--navy1); color:#fff; }
+  .dropdown-item.disabled{
+    color:var(--face-dark);
+    cursor:default;
+  }
+  .dropdown-item.disabled:hover{ background:none; color:var(--face-dark); }
+
+  .link-bar{
+    padding:8px 10px 6px;
+    border-bottom:1px solid var(--face-dark);
+  }
+  .classic-link{
+    color:#0000ee;
+    text-decoration:underline;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .classic-link:visited{ color:#0000ee; }
+  .classic-link:hover{ color:#3333ff; }
+  .classic-link:active{ color:#ee0000; }
+  .link-sep{
+    color:var(--face-dark);
+    margin:0 8px;
+    user-select:none;
+  }
+
+  .btn{
+    flex:1 1 0;
+    background:var(--face);
+    padding:6px 10px;
+    cursor:pointer;
+    user-select:none;
+    display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    text-align:center;
+  }
+  .btn:active{ }
+  .btn.bevel-out:active{
+    box-shadow:
+      inset -1px -1px 0 0 var(--face-white),
+      inset  1px  1px 0 0 var(--face-dark),
+      inset -2px -2px 0 0 var(--face-light),
+      inset  2px  2px 0 0 var(--face-darkest);
+    padding-top:7px; padding-bottom:5px;
+  }
+  .btn.disabled{
+    color:var(--face-dark);
+    cursor:default;
+    pointer-events:none;
+  }
+
+  /* ---------- content / canvas ---------- */
+  .viewer-frame{
+    margin:10px;
+    background:#fff;
+  }
+
+  .content{
+    position:relative;
+    min-height:240px;
+    max-height:400px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    padding:8px;
+    box-sizing:border-box;
+  }
+
+  canvas{
+    display:none;
+    max-width:100%;
+    max-height:384px;
+    width:auto;
+    height:auto;
+  }
+
+  .placeholder{
+    text-align:center;
+    padding:30px 20px;
+    color:#555;
+    line-height:1.6;
+  }
+  .placeholder strong{ color:#000; }
+
+  .artwork-info{
+    padding:8px 10px;
+    line-height:1.4;
+  }
+  .artwork-title{
+    font-weight:bold;
+  }
+  .artwork-meta{
+    color:#444;
+    font-size:12px;
+    margin-top:2px;
+  }
+  .artwork-source{
+    color:#777;
+    font-size:11px;
+    margin-top:4px;
+    font-style:italic;
+  }
+
+  /* ---------- status bar ---------- */
+  .status-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:6px 8px 8px;
+  }
+  .status-text, .status-rate{
+    font-family: Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
+    font-size:12px;
+    color:#222;
+    padding:3px 6px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .status-text{ flex:1 1 auto; min-width:0; }
+  .status-rate{ flex:0 0 auto; min-width:84px; text-align:right; }
+
+  .progress-track{
+    flex:1 1 140px;
+    height:18px;
+    background:#fff;
+    position:relative;
+    overflow:hidden;
+    padding:2px;
+    box-sizing:border-box;
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    background: var(--navy1);
+    transition: width 0.12s linear;
+  }
+
+  .cursor-blink{
+    display:inline-block;
+    margin-left:2px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* ---------- window states ---------- */
+  .window.minimized{ display:none; }
+  .window.maximized{
+    position:fixed;
+    inset:0;
+    width:100vw;
+    height:100vh;
+    margin:0;
+    border:none;
+    box-shadow:none;
+    display:flex;
+    flex-direction:column;
+    z-index:30;
+  }
+  .window.maximized.minimized{ display:none; }
+  .window.maximized .title-bar,
+  .window.maximized .menu-bar,
+  .window.maximized .status-bar{
+    flex:0 0 auto;
+  }
+  .window.maximized .viewer-frame{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    margin:10px;
+  }
+  .window.maximized .link-bar{
+    flex:0 0 auto;
+  }
+  .window.maximized .content{
+    flex:1 1 auto;
+    min-height:0;
+    max-height:none;
+  }
+  .window.maximized .artwork-info{
+    flex:0 0 auto;
+  }
+  .window.maximized canvas{
+    max-height:100%;
+  }
+  .window.maximized .notes-body{
+    flex:1 1 auto;
+    max-height:none;
+  }
+
+  /* ---------- desktop icons ---------- */
+  .desktop-icons{
+    position:fixed;
+    top:20px;
+    left:20px;
+    z-index:5;
+    display:flex;
+    gap:18px;
+  }
+  .desktop-icon{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding:6px;
+    color:#fff;
+    font-size:11px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+    user-select:none;
+    width:74px;
+  }
+  .desktop-icon .icon-slot{
+    height:46px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .desktop-icon:focus{ outline:1px dotted #fff; }
+  .desktop-icon img{
+    image-rendering:pixelated;
+    image-rendering:-moz-crisp-edges;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+  }
+
+  .notes-window{
+    position:fixed;
+    top:80px;
+    left:90px;
+    width:min(86vw, 380px);
+    z-index:80;
+  }
+  .notes-window[hidden]{ display:none; }
+  .notes-body{
+    background:#ffffff;
+    color:#000;
+    font-family: "Courier New", Courier, monospace;
+    font-size:13px;
+    line-height:1.5;
+    white-space:pre-wrap;
+    padding:14px 16px;
+    max-height:60vh;
+    overflow-y:auto;
+  }
+
+  /* ---------- fullscreen overlay ---------- */
+  .fullscreen-overlay{
+    position:fixed;
+    inset:0;
+    background:#000;
+    z-index:60;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .fullscreen-overlay[hidden]{ display:none; }
+  .fullscreen-overlay canvas{
+    display:block;
+    max-width:100vw;
+    max-height:100vh;
+    width:auto;
+    height:auto;
+  }
+  .fullscreen-exit{
+    position:absolute;
+    top:16px;
+    right:16px;
+    padding:6px 12px;
+    cursor:pointer;
+    font-family:inherit;
+    font-size:13px;
+  }
+
+  /* ---------- modal ---------- */
+  .modal-backdrop{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.45);
+    z-index:70;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .modal-backdrop[hidden]{ display:none; }
+  .modal-window{
+    width:min(90vw, 420px);
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.4), inset 1px 1px 0 var(--face-white);
+  }
+  .modal-body{
+    padding:14px 16px;
+    line-height:1.5;
+    font-size:13px;
+  }
+  .modal-body p{ margin:0 0 10px; }
+  .modal-body p:last-of-type{ margin-bottom:14px; }
+  .modal-credit{
+    font-weight:bold;
+  }
+  .modal-actions{
+    display:flex;
+    justify-content:flex-end;
+  }
+  .modal-actions .btn{
+    flex:0 0 auto;
+    padding:5px 18px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .progress-fill{ transition:none; }
+    .cursor-blink{ animation:none; }
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+
+  <div class="desktop-icons">
+    <button class="desktop-icon" id="museumIcon" title="Open Dial-up Museum">
+      <div class="icon-slot"><img src="data:image/png;base64,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" width="50" height="46" alt="" aria-hidden="true"></div>
+      <span>Explorer</span>
+    </button>
+    <button class="desktop-icon" id="notesIcon" title="Open Notes">
+      <div class="icon-slot"><svg viewBox="0 0 48 48" width="46" height="46" aria-hidden="true">
+        <rect x="9" y="4" width="30" height="40" fill="#fffdf0" stroke="#888" stroke-width="1"/>
+        <rect x="9" y="4" width="30" height="8" fill="#f4f1d8" stroke="#888" stroke-width="1"/>
+        <line x1="13" y1="18" x2="35" y2="18" stroke="#bbb" stroke-width="1"/>
+        <line x1="13" y1="23" x2="35" y2="23" stroke="#bbb" stroke-width="1"/>
+        <line x1="13" y1="28" x2="35" y2="28" stroke="#bbb" stroke-width="1"/>
+        <line x1="13" y1="33" x2="28" y2="33" stroke="#bbb" stroke-width="1"/>
+      </svg></div>
+      <span>Notes</span>
+    </button>
+  </div>
+
+  <div class="window notes-window" id="notesWindow" hidden>
+    <div class="title-bar" id="notesTitleBar">
+      <div class="title-text">Notes</div>
+      <div class="title-buttons">
+        <span class="bevel-out" id="notesMinimizeBtn" title="Minimize">_</span>
+        <span class="bevel-out" id="notesMaximizeBtn" title="Maximize">□</span>
+        <span class="bevel-out" id="notesCloseBtn" title="Close">×</span>
+      </div>
+    </div>
+    <div class="notes-body">Leisure
+
+What is this life if, full of care,
+We have no time to stand and stare.
+No time to stand beneath the boughs
+And stare as long as sheep or cows.
+No time to see, when woods we pass,
+Where squirrels hide their nuts in grass.
+No time to see, in broad daylight,
+Streams full of stars, like skies at night.
+No time to turn at Beauty's glance,
+And watch her feet, how they can dance.
+No time to wait till her mouth can
+Enrich that smile her eyes began.
+A poor life this if, full of care,
+We have no time to stand and stare.
+
+W. H. Davies</div>
+  </div>
+
+    <div class="window" id="mainWindow">
+    <div class="title-bar" id="mainTitleBar">
+      <div class="title-text" id="titleText">Dial-up Museum <span class="title-credit">by _smartie</span></div>
+      <div class="title-buttons">
+        <span class="bevel-out" id="btnMinimize" title="Minimize">_</span>
+        <span class="bevel-out" id="btnMaximize" title="Maximize">□</span>
+        <span class="bevel-out" id="btnClose" title="Close">×</span>
+      </div>
+    </div>
+
+    <div class="menu-bar">
+      <div class="menu-group">
+        <span class="menu-item" data-menu="file">File</span>
+        <div class="dropdown bevel-out" data-dropdown="file" hidden>
+          <div class="dropdown-item" id="menuOpen">Open…</div>
+          <div class="dropdown-item" id="menuBack">Back</div>
+          <div class="dropdown-item" id="menuSavePaintingAs">Save image as…</div>
+          <div class="dropdown-item" id="menuSaveScreenshotAs">Save screenshot as…</div>
+          <div class="dropdown-item" id="menuClose">Close</div>
+        </div>
+      </div>
+      <div class="menu-group">
+        <span class="menu-item" data-menu="view">View</span>
+        <div class="dropdown bevel-out" data-dropdown="view" hidden>
+          <div class="dropdown-item" id="menuFullscreen">Full Screen</div>
+        </div>
+      </div>
+      <div class="menu-group">
+        <span class="menu-item" data-menu="help">Help</span>
+        <div class="dropdown bevel-out" data-dropdown="help" hidden>
+          <div class="dropdown-item" id="menuAbout">About</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="viewer-frame bevel-in">
+      <div class="link-bar">
+        <a href="#" class="classic-link" id="fileUploadBtn">Upload</a>
+        <span class="link-sep">|</span>
+        <a href="#" class="classic-link" id="refreshBtn">Refresh</a>
+        <span class="link-sep">|</span>
+        <a href="#" class="classic-link" id="reloadBtn">Next</a>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+
+      <div class="content" id="imageArea">
+        <canvas id="canvas"></canvas>
+        <div class="placeholder" id="placeholder">
+          Finding next painting…
+        </div>
+      </div>
+
+      <div class="artwork-info" id="artworkInfo" hidden>
+        <div class="artwork-title" id="artworkTitle"></div>
+        <div class="artwork-meta" id="artworkMeta"></div>
+        <div class="artwork-source" id="artworkSource"></div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-text" id="statusText">Ready.<span class="cursor-blink">_</span></div>
+      <div class="progress-track bevel-in"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="status-rate" id="statusRate">0.0 KB/sec</div>
+    </div>
+  </div>
+
+  <div class="fullscreen-overlay" id="fullscreenOverlay" hidden>
+    <canvas id="fullscreenCanvas"></canvas>
+    <button class="fullscreen-exit bevel-out" id="fullscreenExitBtn">Exit Full Screen</button>
+  </div>
+
+  <div class="modal-backdrop" id="aboutBackdrop" hidden>
+    <div class="window modal-window">
+      <div class="title-bar">
+        <div class="title-text">About Dial-up Museum</div>
+        <div class="title-buttons">
+          <span class="bevel-out" id="aboutCloseBtn" title="Close">×</span>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p>Dial-up Museum pulls paintings from <strong>The Metropolitan Museum of Art's</strong> open-access collection and displays them the way images used to arrive over a slow dial-up connection.</p>
+        <p>The Met makes tens of thousands of public-domain artworks freely available for any use, without restriction, through its open access initiative — including the images shown here.</p>
+        <p class="modal-credit">Concept by _smartie.</p>
+        <div class="modal-actions">
+          <button class="btn bevel-out" id="aboutOkBtn">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas      = document.getElementById('canvas');
+  const placeholder = document.getElementById('placeholder');
+  const statusText  = document.getElementById('statusText');
+  const statusRate  = document.getElementById('statusRate');
+  const progressFill= document.getElementById('progressFill');
+  const reloadBtn   = document.getElementById('reloadBtn');
+  const refreshBtn  = document.getElementById('refreshBtn');
+  const fileInput   = document.getElementById('fileInput');
+  const fileUploadBtn = document.getElementById('fileUploadBtn');
+  const artworkInfo = document.getElementById('artworkInfo');
+  const artworkTitle= document.getElementById('artworkTitle');
+  const artworkMeta = document.getElementById('artworkMeta');
+  const artworkSource = document.getElementById('artworkSource');
+  const titleText   = document.getElementById('titleText');
+
+  const mainWindow  = document.getElementById('mainWindow');
+  const btnMinimize = document.getElementById('btnMinimize');
+  const btnMaximize = document.getElementById('btnMaximize');
+  const btnClose    = document.getElementById('btnClose');
+  const museumIcon  = document.getElementById('museumIcon');
+  const mainTitleBar = document.getElementById('mainTitleBar');
+  const notesIcon    = document.getElementById('notesIcon');
+  const notesWindow  = document.getElementById('notesWindow');
+  const notesTitleBar = document.getElementById('notesTitleBar');
+  const notesMinimizeBtn = document.getElementById('notesMinimizeBtn');
+  const notesMaximizeBtn = document.getElementById('notesMaximizeBtn');
+  const notesCloseBtn = document.getElementById('notesCloseBtn');
+
+  const menuOpen = document.getElementById('menuOpen');
+  const menuBack = document.getElementById('menuBack');
+  const menuSavePaintingAs = document.getElementById('menuSavePaintingAs');
+  const menuClose = document.getElementById('menuClose');
+  const menuSaveScreenshotAs = document.getElementById('menuSaveScreenshotAs');
+  const menuFullscreen = document.getElementById('menuFullscreen');
+  const menuAbout   = document.getElementById('menuAbout');
+  const fullscreenOverlay = document.getElementById('fullscreenOverlay');
+  const fullscreenCanvas  = document.getElementById('fullscreenCanvas');
+  const fullscreenExitBtn = document.getElementById('fullscreenExitBtn');
+  const aboutBackdrop = document.getElementById('aboutBackdrop');
+  const aboutCloseBtn = document.getElementById('aboutCloseBtn');
+  const aboutOkBtn    = document.getElementById('aboutOkBtn');
+
+  const ctx = canvas.getContext('2d');
+
+  let sourceCanvas = null;
+  let srcImageData = null;
+  let animFrame = null;
+  let pixelAccess = true; // false if CORS taints the canvas; falls back to blur-only mode
+  let loadComplete = false; // true once the current image has finished its reveal animation
+  let currentArtworkTitle = '';
+  let artworkHistory = []; // stack of { imgUrl, record } or { imgUrl, isUpload, name }
+  let isNavigatingBack = false;
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+
+  const CONNECTION = { duration: 55000, rate: 2.8 };
+
+  // ---------- helpers ----------
+
+  function computeDuration(){
+    if (reducedMotion) return 700;
+    const ref = 480 * 360;
+    const area = canvas.width * canvas.height;
+    const scale = Math.min(3, Math.max(0.8, area / ref));
+    return Math.round(CONNECTION.duration * scale);
+  }
+
+  function updateStatus(t){
+    progressFill.style.width = Math.min(100, t * 100).toFixed(0) + '%';
+    if (t < 1){
+      statusText.innerHTML = `Loading… ${Math.floor(t*100)}%<span class="cursor-blink">_</span>`;
+      const jitter = 0.55 + Math.random() * 0.9;
+      statusRate.textContent = (CONNECTION.rate * jitter).toFixed(1) + ' KB/sec';
+    } else {
+      statusText.textContent = `Download complete.`;
+      statusRate.textContent = CONNECTION.rate.toFixed(1) + ' KB/sec';
+    }
+  }
+
+  function updateStatusStalled(){
+    statusText.innerHTML = `Reconnecting…<span class="cursor-blink">_</span>`;
+    statusRate.textContent = '0.0 KB/sec';
+  }
+
+  // Pre-plans a handful of random pauses across the duration. Each mode calls
+  // stalls.effectiveElapsed(now) instead of (now - start) to get a clock that
+  // freezes during stalls, and stalls.isStalled(now) to check current state.
+  function createStalls(duration, start){
+    const count = 2 + Math.floor(Math.random() * 3); // 2-4 stalls
+    const events = [];
+    for (let i = 0; i < count; i++){
+      const at = duration * (0.1 + Math.random() * 0.8);
+      const len = 1000 + Math.random() * 3000; // 1 - 4s pause
+      events.push({ at, len });
+    }
+    events.sort((a, b) => a.at - b.at);
+
+    return {
+      // Returns elapsed time with stall durations subtracted, frozen while inside a stall.
+      effectiveElapsed(now){
+        const rawElapsed = now - start;
+        let subtract = 0;
+        for (const ev of events){
+          if (rawElapsed <= ev.at) break;
+          if (rawElapsed >= ev.at + ev.len){
+            subtract += ev.len;
+          } else {
+            subtract += (rawElapsed - ev.at);
+            break;
+          }
+        }
+        return Math.max(0, rawElapsed - subtract);
+      },
+      isStalled(now){
+        const rawElapsed = now - start;
+        for (const ev of events){
+          if (rawElapsed >= ev.at && rawElapsed < ev.at + ev.len) return true;
+        }
+        return false;
+      }
+    };
+  }
+
+  function onComplete(){
+    progressFill.style.width = '100%';
+    statusText.textContent = `Download complete.`;
+    loadComplete = true;
+    updateMenuAvailability();
+  }
+
+  // ---------- loading effects ----------
+
+  function placeholderImageData(w, h){
+    const data = ctx.createImageData(w, h);
+    for (let i = 0; i < data.data.length; i += 4){
+      data.data[i] = 224; data.data[i+1] = 224; data.data[i+2] = 224; data.data[i+3] = 255;
+    }
+    return data;
+  }
+
+  function runTopDown(duration){
+    const { width: w, height: h, data: src } = srcImageData;
+    const dest = placeholderImageData(w, h);
+    let lastRow = 0;
+    const start = performance.now();
+    const stalls = createStalls(duration, start);
+
+    function frame(now){
+      const elapsed = stalls.effectiveElapsed(now);
+      const t = Math.min(1, elapsed / duration);
+      const rows = Math.floor(t * h);
+      if (rows > lastRow){
+        const s = lastRow * w * 4, e = rows * w * 4;
+        dest.data.set(src.subarray(s, e), s);
+        lastRow = rows;
+      }
+      ctx.putImageData(dest, 0, 0);
+      if (stalls.isStalled(now)) updateStatusStalled(); else updateStatus(t);
+      if (t < 1){ animFrame = requestAnimationFrame(frame); }
+      else { ctx.putImageData(dest, 0, 0); onComplete(); }
+    }
+    animFrame = requestAnimationFrame(frame);
+  }
+
+  function runBurst(duration){
+    const { width: w, height: h, data: src } = srcImageData;
+    const dest = placeholderImageData(w, h);
+    let lastRow = 0;
+    const start = performance.now();
+    const stalls = createStalls(duration, start);
+
+    // Pre-plan a sequence of ragged chunks (variable row heights) that sum to h,
+    // each taking a variable share of the total time — bursty, with occasional stalls.
+    const chunks = [];
+    let remaining = h;
+    while (remaining > 0){
+      const maxChunk = Math.max(1, Math.round(h * 0.12));
+      let size = 1 + Math.floor(Math.random() * maxChunk);
+      size = Math.min(size, remaining);
+      chunks.push(size);
+      remaining -= size;
+    }
+    // weight: some chunks arrive fast, some stall
+    const weights = chunks.map(() => 0.3 + Math.random() * 1.7);
+    const totalWeight = weights.reduce((a,b) => a+b, 0);
+    let cumulative = [];
+    let acc = 0;
+    for (const wgt of weights){ acc += wgt; cumulative.push(acc / totalWeight); }
+
+    function frame(now){
+      const elapsed = stalls.effectiveElapsed(now);
+      const t = Math.min(1, elapsed / duration);
+
+      // figure out how many chunks should have landed by time t
+      let landedRows = 0;
+      for (let i = 0; i < chunks.length; i++){
+        if (cumulative[i] <= t) landedRows += chunks[i];
+        else break;
+      }
+      landedRows = Math.min(h, landedRows);
+
+      if (landedRows > lastRow){
+        const s = lastRow * w * 4, e = landedRows * w * 4;
+        dest.data.set(src.subarray(s, e), s);
+        lastRow = landedRows;
+      }
+
+      ctx.putImageData(dest, 0, 0);
+      if (stalls.isStalled(now)) updateStatusStalled(); else updateStatus(t);
+      if (t < 1){ animFrame = requestAnimationFrame(frame); }
+      else {
+        const s = lastRow * w * 4, e = h * w * 4;
+        if (e > s) dest.data.set(src.subarray(s, e), s);
+        ctx.putImageData(dest, 0, 0);
+        onComplete();
+      }
+    }
+    animFrame = requestAnimationFrame(frame);
+  }
+
+  function runInterlace(duration){
+    const { width: w, height: h, data: src } = srcImageData;
+    const dest = placeholderImageData(w, h);
+
+    const passes = [
+      { start: 0, step: 8 },
+      { start: 4, step: 8 },
+      { start: 2, step: 4 },
+      { start: 1, step: 2 },
+    ];
+    const passRows = passes.map(p => {
+      const rows = [];
+      for (let y = p.start; y < h; y += p.step) rows.push(y);
+      return rows;
+    });
+
+    const filled = new Array(h).fill(false);
+
+    function copyRow(y){
+      const s = y * w * 4;
+      dest.data.set(src.subarray(s, s + w * 4), s);
+      filled[y] = true;
+    }
+
+    function fillGaps(){
+      let lastFilled = -1, firstFilled = -1;
+      for (let y = 0; y < h; y++){
+        if (filled[y]){
+          if (firstFilled === -1) firstFilled = y;
+          lastFilled = y;
+        } else if (lastFilled >= 0){
+          const s = lastFilled * w * 4, d = y * w * 4;
+          dest.data.copyWithin(d, s, s + w * 4);
+        }
+      }
+      if (firstFilled > 0){
+        const s = firstFilled * w * 4;
+        for (let y = 0; y < firstFilled; y++){
+          const d = y * w * 4;
+          dest.data.copyWithin(d, s, s + w * 4);
+        }
+      }
+    }
+
+    const start = performance.now();
+    const stalls = createStalls(duration, start);
+    const segDur = duration / passRows.length;
+    let currentPass = 0;
+    let revealed = 0;
+
+    function frame(now){
+      const elapsed = stalls.effectiveElapsed(now);
+      let pass = Math.min(passRows.length - 1, Math.floor(elapsed / segDur));
+
+      while (currentPass < pass){
+        passRows[currentPass].forEach(copyRow);
+        fillGaps();
+        currentPass++;
+        revealed = 0;
+      }
+
+      const tInPass = Math.min(1, (elapsed - currentPass * segDur) / segDur);
+      const rowsForPass = passRows[currentPass];
+      const target = Math.floor(tInPass * rowsForPass.length);
+      if (target > revealed){
+        for (let i = revealed; i < target; i++) copyRow(rowsForPass[i]);
+        fillGaps();
+        revealed = target;
+      }
+
+      ctx.putImageData(dest, 0, 0);
+      const t = Math.min(1, elapsed / duration);
+      if (stalls.isStalled(now)) updateStatusStalled(); else updateStatus(t);
+
+      if (elapsed < duration){
+        animFrame = requestAnimationFrame(frame);
+      } else {
+        for (let p = currentPass; p < passRows.length; p++) passRows[p].forEach(copyRow);
+        fillGaps();
+        ctx.putImageData(dest, 0, 0);
+        onComplete();
+      }
+    }
+    animFrame = requestAnimationFrame(frame);
+  }
+
+  function runBlur(duration){
+    const w = canvas.width, h = canvas.height;
+    const stages = 6;
+    const start = performance.now();
+    const stalls = createStalls(duration, start);
+    let currentStage = -1;
+
+    function frame(now){
+      const elapsed = stalls.effectiveElapsed(now);
+      const t = Math.min(1, elapsed / duration);
+      const stage = Math.min(stages - 1, Math.floor(t * stages));
+
+      if (stage !== currentStage){
+        currentStage = stage;
+        const factor = Math.pow(2, stages - 1 - stage);
+        const sw = Math.max(1, Math.round(w / factor));
+        const sh = Math.max(1, Math.round(h / factor));
+        const small = document.createElement('canvas');
+        small.width = sw; small.height = sh;
+        small.getContext('2d').drawImage(sourceCanvas, 0, 0, sw, sh);
+        ctx.imageSmoothingEnabled = true;
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(small, 0, 0, w, h);
+      }
+
+      if (stalls.isStalled(now)) updateStatusStalled(); else updateStatus(t);
+      if (t < 1){ animFrame = requestAnimationFrame(frame); }
+      else {
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(sourceCanvas, 0, 0, w, h);
+        onComplete();
+      }
+    }
+    animFrame = requestAnimationFrame(frame);
+  }
+
+  // Quantize an ImageData to a small, evenly-spaced palette per channel
+  // to simulate a low-color-depth "first pass" before the real colors snap in.
+  function quantize(data, levels){
+    const out = new Uint8ClampedArray(data.length);
+    const step = 255 / (levels - 1);
+    for (let i = 0; i < data.length; i += 4){
+      out[i]   = Math.round(Math.round(data[i]   / step) * step);
+      out[i+1] = Math.round(Math.round(data[i+1] / step) * step);
+      out[i+2] = Math.round(Math.round(data[i+2] / step) * step);
+      out[i+3] = 255;
+    }
+    return out;
+  }
+
+  function runPalette(duration){
+    const { width: w, height: h, data: src } = srcImageData;
+    const lowData  = quantize(src, 4);  // rough, dithered-looking pass
+    const midData  = quantize(src, 8);  // closer pass
+    const dest = new ImageData(new Uint8ClampedArray(lowData), w, h);
+    ctx.putImageData(dest, 0, 0);
+
+    // Stages: rough palette -> mid palette -> full color, each revealed top-down.
+    const stages = [lowData, midData, src];
+    const segDur = duration / stages.length;
+    const start = performance.now();
+    const stalls = createStalls(duration, start);
+    let currentStage = 0;
+    let lastRow = 0;
+    let stageData = stages[0];
+
+    function frame(now){
+      const elapsed = stalls.effectiveElapsed(now);
+      const t = Math.min(1, elapsed / duration);
+      let stage = Math.min(stages.length - 1, Math.floor(elapsed / segDur));
+
+      if (stage !== currentStage){
+        currentStage = stage;
+        stageData = stages[stage];
+        lastRow = 0;
+      }
+
+      const tInStage = Math.min(1, (elapsed - currentStage * segDur) / segDur);
+      const rows = Math.max(1, Math.floor(tInStage * h));
+      if (rows > lastRow){
+        const s = lastRow * w * 4, e = rows * w * 4;
+        dest.data.set(stageData.subarray(s, e), s);
+        lastRow = rows;
+      }
+
+      ctx.putImageData(dest, 0, 0);
+      if (stalls.isStalled(now)) updateStatusStalled(); else updateStatus(t);
+
+      if (elapsed < duration){
+        animFrame = requestAnimationFrame(frame);
+      } else {
+        dest.data.set(src);
+        ctx.putImageData(dest, 0, 0);
+        onComplete();
+      }
+    }
+    animFrame = requestAnimationFrame(frame);
+  }
+
+  // ---------- orchestration ----------
+
+  const LOAD_MODES = ['interlace', 'burst', 'palette', 'topdown', 'blur'];
+  let modeIndex = 0;
+
+  function nextMode(){
+    const mode = LOAD_MODES[modeIndex % LOAD_MODES.length];
+    modeIndex++;
+    return mode;
+  }
+
+  function runLoad(){
+    if (!srcImageData && pixelAccess) return;
+    if (!sourceCanvas) return;
+    if (animFrame) cancelAnimationFrame(animFrame);
+    const duration = computeDuration();
+
+    // Always advance the cycle, even when pixel access is unavailable for this
+    // particular image, so the sequence keeps moving and resumes correctly
+    // once an image with pixel access loads again.
+    const mode = nextMode();
+
+    if (!pixelAccess){
+      runBlur(duration);
+      return;
+    }
+
+    if (mode === 'topdown')        runTopDown(duration);
+    else if (mode === 'burst')     runBurst(duration);
+    else if (mode === 'interlace') runInterlace(duration);
+    else if (mode === 'blur')      runBlur(duration);
+    else                            runPalette(duration);
+  }
+
+  function startSequence(){
+    if (animFrame) cancelAnimationFrame(animFrame);
+    progressFill.style.width = '0%';
+    statusRate.textContent = '0.0 KB/sec';
+    loadComplete = false;
+    updateMenuAvailability();
+
+    if (reducedMotion){
+      statusText.innerHTML = `Loading… 0%<span class="cursor-blink">_</span>`;
+      runLoad();
+      return;
+    }
+
+    const msgs = [
+      'Dialing…',
+      'Connecting…',
+      'Negotiating protocol…',
+    ];
+    let i = 0;
+    statusText.innerHTML = msgs[0] + '<span class="cursor-blink">_</span>';
+    const iv = setInterval(() => {
+      i++;
+      if (i < msgs.length){
+        statusText.innerHTML = msgs[i] + '<span class="cursor-blink">_</span>';
+      } else {
+        clearInterval(iv);
+        runLoad();
+      }
+    }, 420);
+  }
+
+  // ---------- The Met artwork loading ----------
+
+  const SEARCH_URL = 'https://collectionapi.metmuseum.org/public/collection/v1/search'
+    + '?hasImages=true&medium=Paintings&dateBegin=1826&dateEnd=1926&q=painting';
+
+  const FALLBACK_SEARCH_URL = 'https://collectionapi.metmuseum.org/public/collection/v1/search'
+    + '?hasImages=true&dateBegin=1826&dateEnd=1926&q=painting';
+
+  const OBJECT_URL = id => `https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`;
+
+  let objectIdPool = null;
+
+  async function fetchJson(url){
+    let res;
+    try {
+      res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    } catch (e){
+      throw new Error(`Network error: ${e.message}`);
+    }
+    if (!res.ok) throw new Error(`Request failed (HTTP ${res.status})`);
+    return res.json();
+  }
+
+  async function getObjectIdPool(){
+    if (objectIdPool) return objectIdPool;
+
+    let ids = [];
+    try {
+      const data = await fetchJson(SEARCH_URL);
+      ids = data.objectIDs || [];
+    } catch (e){
+      // ignore, try fallback below
+    }
+
+    if (ids.length < 10){
+      const fallback = await fetchJson(FALLBACK_SEARCH_URL);
+      ids = fallback.objectIDs || [];
+    }
+
+    if (!ids.length) throw new Error('No results');
+    objectIdPool = ids;
+    return objectIdPool;
+  }
+
+  function isPainting(record){
+    const classification = (record.classification || '').toLowerCase();
+    const objectName = (record.objectName || '').toLowerCase();
+    return classification.includes('painting') || objectName.includes('painting');
+  }
+
+  function isInDateRange(record){
+    const begin = record.objectBeginDate;
+    const end = record.objectEndDate;
+    if (typeof begin !== 'number' || typeof end !== 'number') return true; // unknown, don't exclude
+    // Accept if the object's date range overlaps 1826-1926 at all.
+    return begin <= 1926 && end >= 1826;
+  }
+
+  function setArtworkInfo(record){
+    const title = record.title || 'Untitled';
+    const artist = record.artistDisplayName || 'Unknown artist';
+    const date = record.objectDate || 'Date unknown';
+    artworkTitle.textContent = title;
+    artworkMeta.textContent = `${artist} — ${date}`;
+    artworkSource.textContent = 'Source: The Met Collection';
+    artworkInfo.hidden = false;
+    currentArtworkTitle = title;
+  }
+
+  // Loads an image and prepares the canvas, requiring real pixel access so all
+  // five reveal effects work. If the CORS-enabled load doesn't grant pixel
+  // access (tainted canvas), this rejects so the caller can try a different
+  // image instead of silently falling back to a single style.
+  function prepareImage(imgUrl, { requirePixelAccess = true } = {}){
+    const tryLoad = (useCrossOrigin) => new Promise((resolve, reject) => {
+      const img = new Image();
+      if (useCrossOrigin) img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const maxW = 480, maxH = 360;
+        let w = img.naturalWidth, h = img.naturalHeight;
+        const scale = Math.min(1, maxW / w, maxH / h);
+        w = Math.max(1, Math.round(w * scale));
+        h = Math.max(1, Math.round(h * scale));
+
+        canvas.width = w;
+        canvas.height = h;
+
+        sourceCanvas = document.createElement('canvas');
+        sourceCanvas.width = w;
+        sourceCanvas.height = h;
+        const sctx = sourceCanvas.getContext('2d');
+        sctx.drawImage(img, 0, 0, w, h);
+
+        try {
+          srcImageData = sctx.getImageData(0, 0, w, h);
+          pixelAccess = true;
+        } catch (e){
+          srcImageData = null;
+          pixelAccess = false;
+        }
+
+        if (requirePixelAccess && !pixelAccess){
+          reject(new Error('No pixel access (CORS)'));
+          return;
+        }
+
+        resolve();
+      };
+      img.onerror = () => reject(new Error('Image failed to load'));
+      img.src = imgUrl;
+    });
+
+    return tryLoad(true);
+  }
+
+  async function loadRandomArtwork(){
+    if (animFrame) cancelAnimationFrame(animFrame);
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Finding next painting…';
+    canvas.style.display = 'none';
+    artworkInfo.hidden = true;
+    progressFill.style.width = '0%';
+    statusRate.textContent = '0.0 KB/sec';
+    statusText.innerHTML = `Looking up artwork…<span class="cursor-blink">_</span>`;
+    loadComplete = false;
+    sourceCanvas = null;
+    updateMenuAvailability();
+
+    let lastError = null;
+
+    try {
+      const ids = await getObjectIdPool();
+      const tried = new Set();
+
+      for (let attempt = 0; attempt < 25 && tried.size < ids.length; attempt++){
+        placeholder.textContent = `Finding next painting… (attempt ${attempt + 1})`;
+
+        let idx;
+        do { idx = Math.floor(Math.random() * ids.length); } while (tried.has(idx) && tried.size < ids.length);
+        tried.add(idx);
+        const id = ids[idx];
+
+        try {
+          const record = await fetchJson(OBJECT_URL(id));
+          if (!record.isPublicDomain) continue;
+          if (!isPainting(record)) continue;
+          if (!isInDateRange(record)) continue;
+          const imgUrl = record.primaryImageSmall || record.primaryImage;
+          if (!imgUrl) continue;
+
+          await prepareImage(imgUrl);
+
+          placeholder.style.display = 'none';
+          canvas.style.display = 'block';
+          setArtworkInfo(record);
+          if (!isNavigatingBack){
+            artworkHistory.push({ imgUrl, record });
+          }
+          startSequence();
+          return;
+        } catch (e){
+          lastError = e;
+          continue;
+        }
+      }
+      throw lastError || new Error('Could not find a usable image after several attempts');
+    } catch (e){
+      placeholder.style.display = 'block';
+      placeholder.textContent = `Could not load an artwork right now (${e.message}). Try "Load another".`;
+      statusText.innerHTML = `Connection failed.<span class="cursor-blink">_</span>`;
+    }
+  }
+
+  // ---------- user upload ----------
+
+  function handleFileUpload(file){
+    if (!file || !file.type.startsWith('image/')) return;
+    if (animFrame) cancelAnimationFrame(animFrame);
+
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Loading your image…';
+    canvas.style.display = 'none';
+    artworkInfo.hidden = true;
+    progressFill.style.width = '0%';
+    statusRate.textContent = '0.0 KB/sec';
+    statusText.innerHTML = `Looking up artwork…<span class="cursor-blink">_</span>`;
+    loadComplete = false;
+    sourceCanvas = null;
+    updateMenuAvailability();
+
+    const url = URL.createObjectURL(file);
+    prepareImage(url)
+      .then(() => {
+        URL.revokeObjectURL(url);
+        placeholder.style.display = 'none';
+        canvas.style.display = 'block';
+        artworkTitle.textContent = file.name;
+        artworkMeta.textContent = 'Uploaded image';
+        artworkSource.textContent = 'Source: Your device';
+        artworkInfo.hidden = false;
+        currentArtworkTitle = file.name.replace(/\.[^.]+$/, '');
+        if (!isNavigatingBack){
+          artworkHistory.push({
+            imgUrl: sourceCanvas.toDataURL('image/png'),
+            isUpload: true,
+            name: file.name
+          });
+        }
+        startSequence();
+      })
+      .catch((e) => {
+        URL.revokeObjectURL(url);
+        placeholder.style.display = 'block';
+        placeholder.textContent = `Could not load that image (${e.message}).`;
+        statusText.innerHTML = `Connection failed.<span class="cursor-blink">_</span>`;
+      });
+  }
+
+  // ---------- navigation history ----------
+
+  async function goBack(){
+    if (artworkHistory.length < 2) return;
+
+    artworkHistory.pop(); // discard the current entry
+    const previous = artworkHistory[artworkHistory.length - 1];
+
+    if (animFrame) cancelAnimationFrame(animFrame);
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Going back…';
+    canvas.style.display = 'none';
+    artworkInfo.hidden = true;
+    progressFill.style.width = '0%';
+    statusRate.textContent = '0.0 KB/sec';
+    statusText.innerHTML = `Looking up artwork…<span class="cursor-blink">_</span>`;
+    loadComplete = false;
+    sourceCanvas = null;
+    updateMenuAvailability();
+
+    isNavigatingBack = true;
+    try {
+      await prepareImage(previous.imgUrl);
+      placeholder.style.display = 'none';
+      canvas.style.display = 'block';
+
+      if (previous.isUpload){
+        artworkTitle.textContent = previous.name;
+        artworkMeta.textContent = 'Uploaded image';
+        artworkSource.textContent = 'Source: Your device';
+        artworkInfo.hidden = false;
+        currentArtworkTitle = previous.name.replace(/\.[^.]+$/, '');
+      } else {
+        setArtworkInfo(previous.record);
+      }
+
+      startSequence();
+    } catch (e){
+      placeholder.style.display = 'block';
+      placeholder.textContent = `Could not go back (${e.message}).`;
+      statusText.innerHTML = `Connection failed.<span class="cursor-blink">_</span>`;
+    } finally {
+      isNavigatingBack = false;
+      updateMenuAvailability();
+    }
+  }
+
+  // ---------- menu availability ----------
+
+  function updateMenuAvailability(){
+    const ready = loadComplete && !!sourceCanvas;
+    menuSavePaintingAs.classList.toggle('disabled', !ready);
+    menuSaveScreenshotAs.classList.toggle('disabled', !ready);
+    menuFullscreen.classList.toggle('disabled', !ready);
+    menuBack.classList.toggle('disabled', artworkHistory.length < 2);
+  }
+  updateMenuAvailability();
+
+  // ---------- dropdown menus ----------
+
+  const menuItems = document.querySelectorAll('.menu-item');
+  const dropdowns = document.querySelectorAll('.dropdown');
+
+  function closeAllMenus(){
+    dropdowns.forEach(d => d.hidden = true);
+    menuItems.forEach(m => m.classList.remove('open'));
+  }
+
+  menuItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = item.dataset.menu;
+      const dd = document.querySelector(`.dropdown[data-dropdown="${key}"]`);
+      const isOpen = dd && !dd.hidden;
+      closeAllMenus();
+      if (dd && !isOpen){
+        dd.hidden = false;
+        item.classList.add('open');
+      }
+    });
+  });
+
+  document.addEventListener('click', () => closeAllMenus());
+
+  menuOpen.addEventListener('click', () => {
+    closeAllMenus();
+    fileInput.click();
+  });
+
+  menuBack.addEventListener('click', () => {
+    if (menuBack.classList.contains('disabled')) return;
+    closeAllMenus();
+    goBack();
+  });
+
+  menuSavePaintingAs.addEventListener('click', () => {
+    if (menuSavePaintingAs.classList.contains('disabled')) return;
+    closeAllMenus();
+    saveCurrentImage();
+  });
+
+  menuSaveScreenshotAs.addEventListener('click', () => {
+    if (menuSaveScreenshotAs.classList.contains('disabled')) return;
+    closeAllMenus();
+    saveScreenshot();
+  });
+
+  menuClose.addEventListener('click', () => {
+    closeAllMenus();
+    closeWindow();
+  });
+
+  menuFullscreen.addEventListener('click', () => {
+    if (menuFullscreen.classList.contains('disabled')) return;
+    closeAllMenus();
+    enterFullscreen();
+  });
+
+  menuAbout.addEventListener('click', () => {
+    closeAllMenus();
+    aboutBackdrop.hidden = false;
+  });
+
+  // ---------- window controls ----------
+
+  btnMinimize.addEventListener('click', () => {
+    mainWindow.classList.add('minimized');
+    document.body.classList.remove('no-scroll');
+  });
+
+  function closeWindow(){
+    mainWindow.classList.add('minimized');
+    document.body.classList.remove('no-scroll');
+  }
+
+  btnClose.addEventListener('click', closeWindow);
+
+  museumIcon.addEventListener('click', () => {
+    mainWindow.classList.remove('minimized');
+    document.body.classList.toggle('no-scroll', mainWindow.classList.contains('maximized'));
+  });
+
+  // ---------- window dragging ----------
+
+  // Generalized drag behavior, usable for any window-like element with its
+  // own title bar. Returns an object exposing the current offset getters/
+  // setters so callers (e.g. maximize handling) can read or reset position.
+  function makeDraggable(windowEl, titleBarEl, { isMaximizable = false } = {}){
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    let posX = 0;
+    let posY = 0;
+    let dragging = false;
+
+    function clampPosition(){
+      const rect = windowEl.getBoundingClientRect();
+      const margin = 4;
+      const minX = margin - (rect.left - posX);
+      const minY = margin - (rect.top - posY);
+      const maxX = window.innerWidth - margin - (rect.right - posX);
+      const maxY = window.innerHeight - margin - (rect.bottom - posY);
+      posX = Math.min(Math.max(posX, minX), Math.max(minX, maxX));
+      posY = Math.min(Math.max(posY, minY), Math.max(minY, maxY));
+    }
+
+    function applyTransform(){
+      windowEl.style.transform = `translate(${posX}px, ${posY}px)`;
+    }
+
+    titleBarEl.addEventListener('pointerdown', (e) => {
+      if (isMaximizable && windowEl.classList.contains('maximized')) return;
+      if (e.target.closest('.title-buttons')) return;
+      if (e.button !== undefined && e.button !== 0) return;
+
+      dragging = true;
+      windowEl.classList.add('dragging');
+      dragOffsetX = e.clientX - posX;
+      dragOffsetY = e.clientY - posY;
+      titleBarEl.setPointerCapture(e.pointerId);
+    });
+
+    titleBarEl.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      posX = e.clientX - dragOffsetX;
+      posY = e.clientY - dragOffsetY;
+      applyTransform();
+    });
+
+    function endDrag(e){
+      if (!dragging) return;
+      dragging = false;
+      windowEl.classList.remove('dragging');
+      clampPosition();
+      applyTransform();
+      try { titleBarEl.releasePointerCapture(e.pointerId); } catch (err){}
+    }
+
+    titleBarEl.addEventListener('pointerup', endDrag);
+    titleBarEl.addEventListener('pointercancel', endDrag);
+
+    return {
+      reset(){ posX = 0; posY = 0; windowEl.style.transform = 'none'; },
+      restore(){ applyTransform(); }
+    };
+  }
+
+  const mainWindowDrag = makeDraggable(mainWindow, mainTitleBar, { isMaximizable: true });
+  const notesWindowDrag = makeDraggable(notesWindow, notesTitleBar, { isMaximizable: true });
+
+  notesIcon.addEventListener('click', () => {
+    notesWindow.hidden = false;
+    notesWindow.classList.remove('minimized');
+  });
+
+  notesMinimizeBtn.addEventListener('click', () => {
+    notesWindow.classList.add('minimized');
+  });
+
+  notesMaximizeBtn.addEventListener('click', () => {
+    notesWindow.classList.toggle('maximized');
+    if (notesWindow.classList.contains('maximized')){
+      notesWindowDrag.reset();
+    } else {
+      notesWindowDrag.restore();
+    }
+  });
+
+  notesCloseBtn.addEventListener('click', () => {
+    notesWindow.hidden = true;
+  });
+
+  // Reset position when maximizing, since the maximized state takes over
+  // sizing/position entirely; restore the translate once un-maximized.
+  btnMaximize.addEventListener('click', () => {
+    mainWindow.classList.toggle('maximized');
+    const nowMaximized = mainWindow.classList.contains('maximized');
+    document.body.classList.toggle('no-scroll', nowMaximized);
+    if (nowMaximized){
+      mainWindowDrag.reset();
+    } else {
+      mainWindowDrag.restore();
+    }
+  });
+
+  // ---------- full screen ----------
+
+  function enterFullscreen(){
+    if (!sourceCanvas) return;
+    const fctx = fullscreenCanvas.getContext('2d');
+    fullscreenCanvas.width = sourceCanvas.width;
+    fullscreenCanvas.height = sourceCanvas.height;
+    fctx.drawImage(sourceCanvas, 0, 0);
+    fullscreenOverlay.hidden = false;
+    document.body.classList.add('no-scroll');
+  }
+
+  function exitFullscreen(){
+    fullscreenOverlay.hidden = true;
+    document.body.classList.remove('no-scroll');
+  }
+
+  fullscreenExitBtn.addEventListener('click', exitFullscreen);
+  fullscreenOverlay.addEventListener('click', (e) => {
+    if (e.target === fullscreenOverlay) exitFullscreen();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !fullscreenOverlay.hidden) exitFullscreen();
+  });
+
+  // ---------- about modal ----------
+
+  function closeAbout(){ aboutBackdrop.hidden = true; }
+  aboutCloseBtn.addEventListener('click', closeAbout);
+  aboutOkBtn.addEventListener('click', closeAbout);
+  aboutBackdrop.addEventListener('click', (e) => {
+    if (e.target === aboutBackdrop) closeAbout();
+  });
+
+  // ---------- save as ----------
+
+  function sanitizeFilename(name){
+    return (name || 'artwork').replace(/[^a-z0-9\-_ ]+/gi, '').trim().replace(/\s+/g, '-').slice(0, 80) || 'artwork';
+  }
+
+  function saveCurrentImage(){
+    if (!sourceCanvas) return;
+    const filename = `${sanitizeFilename(currentArtworkTitle)}.png`;
+    sourceCanvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
+  // Composites just the title bar and grey image frame (with the artwork
+  // visible inside, on its white background) into a single PNG — the
+  // "window browser extent" rather than the full app chrome.
+  // Captures the actual rendered window element — title bar, menus, toolbar
+  // buttons, image, info box, and status/loading bar — exactly as shown on
+  // screen, using html2canvas to rasterize the live DOM.
+  function saveScreenshot(){
+    if (!sourceCanvas) return;
+
+    if (typeof html2canvas === 'undefined'){
+      statusText.innerHTML = `Screenshot unavailable (no network).<span class="cursor-blink">_</span>`;
+      return;
+    }
+
+    const filename = `${sanitizeFilename(currentArtworkTitle)}-screenshot.png`;
+
+    html2canvas(mainWindow, {
+      backgroundColor: '#c0c0c0',
+      scale: window.devicePixelRatio || 1,
+      useCORS: true,
+      logging: false,
+      onclone: (clonedDoc) => {
+        // box-shadow-based bevels often don't rasterize reliably in html2canvas,
+        // so swap them for explicit border colors that approximate the same
+        // raised/sunken 3D look using solid borders instead.
+        const outEls = clonedDoc.querySelectorAll('.bevel-out');
+        outEls.forEach(el => {
+          el.style.boxShadow = 'none';
+          el.style.border = '2px solid';
+          el.style.borderTopColor = '#ffffff';
+          el.style.borderLeftColor = '#ffffff';
+          el.style.borderRightColor = '#000000';
+          el.style.borderBottomColor = '#000000';
+        });
+        const inEls = clonedDoc.querySelectorAll('.bevel-in');
+        inEls.forEach(el => {
+          el.style.boxShadow = 'none';
+          el.style.border = '2px solid';
+          el.style.borderTopColor = '#000000';
+          el.style.borderLeftColor = '#000000';
+          el.style.borderRightColor = '#ffffff';
+          el.style.borderBottomColor = '#ffffff';
+        });
+
+        // Plain solid backgrounds rasterize reliably in html2canvas, so this
+        // is mostly a safety net to ensure the fill renders as a flat color.
+        const fill = clonedDoc.getElementById('progressFill');
+        if (fill){
+          fill.style.background = '#000080';
+        }
+      }
+    }).then((shot) => {
+      shot.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, 'image/png');
+    }).catch(() => {
+      statusText.innerHTML = `Could not capture screenshot.<span class="cursor-blink">_</span>`;
+    });
+  }
+
+  // ---------- events ----------
+
+  reloadBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    loadRandomArtwork();
+  });
+
+  refreshBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!sourceCanvas) return;
+    startSequence();
+  });
+
+  fileUploadBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    handleFileUpload(file);
+    fileInput.value = '';
+  });
+
+  loadRandomArtwork();
+})();
+
+</script>
+</body>
+</html>
