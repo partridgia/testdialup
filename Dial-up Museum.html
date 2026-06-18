@@ -1138,11 +1138,13 @@ W. H. Davies</div>
     currentArtworkTitle = title;
   }
 
-  // Loads an image and prepares the canvas, requiring real pixel access so all
-  // five reveal effects work. If the CORS-enabled load doesn't grant pixel
-  // access (tainted canvas), this rejects so the caller can try a different
-  // image instead of silently falling back to a single style.
-  function prepareImage(imgUrl, { requirePixelAccess = true } = {}){
+  // Loads an image and prepares the canvas. Tries crossOrigin='anonymous' first
+  // to get pixel access for all five reveal effects. If the CDN refuses CORS
+  // (onerror fires — common with some Met CDN cache hits), retries without
+  // crossOrigin so the image still loads, accepting blur-only mode for that
+  // particular painting rather than showing an error. Only rejects if both
+  // attempts truly fail (broken URL, network error, etc.).
+  function prepareImage(imgUrl, { requirePixelAccess = false } = {}){
     const tryLoad = (useCrossOrigin) => new Promise((resolve, reject) => {
       const img = new Image();
       if (useCrossOrigin) img.crossOrigin = 'anonymous';
@@ -1170,18 +1172,15 @@ W. H. Davies</div>
           pixelAccess = false;
         }
 
-        if (requirePixelAccess && !pixelAccess){
-          reject(new Error('No pixel access (CORS)'));
-          return;
-        }
-
         resolve();
       };
       img.onerror = () => reject(new Error('Image failed to load'));
       img.src = imgUrl;
     });
 
-    return tryLoad(true);
+    // Try with CORS first; if the CDN rejects the preflight/headers (onerror),
+    // fall back to a non-CORS load which always succeeds (tainted canvas = blur only).
+    return tryLoad(true).catch(() => tryLoad(false));
   }
 
   async function loadRandomArtwork(){
